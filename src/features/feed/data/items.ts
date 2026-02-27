@@ -1,0 +1,58 @@
+import { FeedItem } from '../types';
+
+export const FEED_ITEMS: FeedItem[] = [
+  {
+    item_id: '1',
+    title: 'Black iPhone 13',
+    location: 'Library',
+    status: 'unclaimed',
+    imageUrl: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80',
+    categoryId: 'electronics',
+    categoryLabel: 'Electronics',
+  },
+  {
+    item_id: '2',
+    title: 'Grey Hoodie',
+    location: 'Cafeteria',
+    status: 'returned',
+    imageUrl: 'https://images.unsplash.com/photo-1542293787938-4d273c37c3ab?auto=format&fit=crop&w=800&q=80',
+    categoryId: 'clothing',
+    categoryLabel: 'Clothing',
+  },
+  {
+    item_id: '3',
+    title: 'Hydro Flask Bottle',
+    location: 'Gym',
+    status: 'unclaimed',
+    imageUrl: 'https://images.unsplash.com/photo-1526402462921-01400903dec0?auto=format&fit=crop&w=800&q=80',
+    categoryId: 'bottles',
+    categoryLabel: 'Bottles',
+  },
+  {
+    item_id: '4',
+    title: 'Calculus Textbook',
+    location: 'Science Hall',
+    status: 'returned',
+    imageUrl: 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&w=800&q=80',
+    categoryId: 'books',
+    categoryLabel: 'Books',
+  },
+  {
+    item_id: '5',
+    title: 'MacBook Pro 14"',
+    location: 'Study Lounge',
+    status: 'unclaimed',
+    imageUrl: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=800&q=80',
+    categoryId: 'electronics',
+    categoryLabel: 'Electronics',
+  },
+  {
+    item_id: '6',
+    title: 'Blue Backpack',
+    location: 'Dorm Lobby',
+    status: 'unclaimed',
+    imageUrl: 'https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=800&q=80',
+    categoryId: 'others',
+    categoryLabel: 'Others',
+  },
+];

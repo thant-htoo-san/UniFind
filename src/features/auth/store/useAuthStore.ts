@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { create } from 'zustand/index.js';
 import { User } from 'firebase/auth';
 import {
   signIn,

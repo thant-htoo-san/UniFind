@@ -1,14 +1,28 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { FlatList, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import FeedItemCard from '../../feed/components/FeedItemCard';
 import { FeedItem } from '../../feed/types';
 import { useFeedStore } from '../../feed/store/useFeedStore';
+import { RootStackParamList } from '../../../navigation/types';
+import { RouteNames } from '../../../navigation/routeNames';
 
 const SearchScreen: React.FC = () => {
-  const { items } = useFeedStore((state) => ({ items: state.items }));
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const { items, loadItems, isLoading } = useFeedStore((state) => ({
+    items: state.items,
+    loadItems: state.loadItems,
+    isLoading: state.isLoading,
+  }));
   const [query, setQuery] = useState('');
+
+  useEffect(() => {
+    const unsubscribe = loadItems();
+    return unsubscribe;
+  }, [loadItems]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -34,11 +48,16 @@ const SearchScreen: React.FC = () => {
         keyExtractor={(item) => item.item_id}
         renderItem={({ item }) => (
           <View style={styles.itemSpacing}>
-            <FeedItemCard item={item} />
+            <FeedItemCard
+              item={item}
+              onPress={(selected) => navigation.navigate(RouteNames.ITEM_DETAIL, { itemId: selected.item_id })}
+            />
           </View>
         )}
         contentContainerStyle={styles.listContent}
-        ListEmptyComponent={<Text style={styles.empty}>No matches found.</Text>}
+        ListEmptyComponent={
+          <Text style={styles.empty}>{isLoading ? 'Loading items...' : 'No matches found.'}</Text>
+        }
         showsVerticalScrollIndicator={false}
       />
     </SafeAreaView>

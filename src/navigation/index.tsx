@@ -4,6 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Home, MessageCircle, PlusSquare, Search as SearchIcon } from 'lucide-react-native';
 import { RouteNames } from './routeNames';
 import { RootStackParamList, MainTabParamList } from './types';
+import LandingScreen from '../features/auth/screens/LandingScreen';
 import LoginScreen from '../features/auth/screens/LoginScreen';
 import HomeScreen from '../features/feed/screens/HomeScreen';
 import PostItemScreen from '../features/post_item/screens/PostItemScreen';
@@ -41,7 +42,12 @@ function MainTabs() {
 
 export function RootNavigator() {
   return (
-    <Stack.Navigator initialRouteName={RouteNames.LOGIN}>
+    <Stack.Navigator initialRouteName={RouteNames.LANDING}>
+      <Stack.Screen
+        name={RouteNames.LANDING}
+        component={LandingScreen}
+        options={{ headerShown: false }}
+      />
       <Stack.Screen
         name={RouteNames.LOGIN}
         component={LoginScreen}

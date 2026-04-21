@@ -1,5 +1,5 @@
 // Firebase config
-export { default as app, auth, db, rtdb } from '../config/firebase';
+export { default as app, auth, db, rtdb, storage } from '../config/firebase';
 
 // Auth service
 export * from './authService';

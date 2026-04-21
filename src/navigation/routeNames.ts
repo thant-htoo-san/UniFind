@@ -1,4 +1,5 @@
 export const RouteNames = {
+  LANDING: 'Landing',
   LOGIN: 'Login',
   MAIN_TABS: 'MainTabs',
   HOME: 'Home',

@@ -3,7 +3,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Home, MessageCircle, PlusSquare, Search as SearchIcon } from 'lucide-react-native';
 import { RouteNames } from './routeNames';
-import { RootStackParamList, MainTabParamList } from './types';
+import { RootStackParamList, MainTabParamList, MessagesStackParamList } from './types';
 import LandingScreen from '../features/auth/screens/LandingScreen';
 import LoginScreen from '../features/auth/screens/LoginScreen';
 import HomeScreen from '../features/feed/screens/HomeScreen';
@@ -15,6 +15,20 @@ import ItemDetailScreen from '../features/item_detail/screens/ItemDetailScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
+const MessagesStack = createNativeStackNavigator<MessagesStackParamList>();
+
+function MessagesNavigator() {
+  return (
+    <MessagesStack.Navigator
+      screenOptions={{
+        headerShown: false,
+      }}
+    >
+      <MessagesStack.Screen name={RouteNames.MESSAGES} component={MessagesScreen} />
+      <MessagesStack.Screen name={RouteNames.CHAT_DETAIL} component={ChatDetailScreen} />
+    </MessagesStack.Navigator>
+  );
+}
 
 function MainTabs() {
   return (
@@ -36,7 +50,11 @@ function MainTabs() {
       <Tab.Screen name={RouteNames.HOME} component={HomeScreen} options={{ title: 'Home' }} />
       <Tab.Screen name={RouteNames.POST_ITEM} component={PostItemScreen} options={{ title: 'Post' }} />
       <Tab.Screen name={RouteNames.SEARCH} component={SearchScreen} options={{ title: 'Search' }} />
-      <Tab.Screen name={RouteNames.MESSAGES} component={MessagesScreen} options={{ title: 'Messages' }} />
+      <Tab.Screen 
+        name={RouteNames.MESSAGES} 
+        component={MessagesNavigator} 
+        options={{ title: 'Messages' }} 
+      />
     </Tab.Navigator>
   );
 }
@@ -60,7 +78,6 @@ export function RootNavigator() {
         options={{ headerShown: false }}
       />
       <Stack.Screen name={RouteNames.ITEM_DETAIL} component={ItemDetailScreen} options={{ title: 'Item Detail' }} />
-      <Stack.Screen name={RouteNames.CHAT_DETAIL} component={ChatDetailScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 }

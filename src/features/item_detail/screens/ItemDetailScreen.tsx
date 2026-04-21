@@ -115,9 +115,15 @@ const ItemDetailScreen: React.FC<Props> = ({ route, navigation }) => {
         posterName || 'User'
       );
 
-      navigation.navigate(RouteNames.CHAT_DETAIL, {
-        conversationId,
-        otherUserName: posterName || 'User',
+      navigation.navigate(RouteNames.MAIN_TABS, {
+        screen: RouteNames.MESSAGES,
+        params: {
+          screen: RouteNames.CHAT_DETAIL,
+          params: {
+            conversationId,
+            otherUserName: posterName || 'User',
+          },
+        },
       });
     } catch (error: any) {
       Alert.alert('Error', error?.message || 'Failed to start conversation');

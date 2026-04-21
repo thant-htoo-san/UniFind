@@ -15,11 +15,11 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { useAuthStore } from '../../auth/store/useAuthStore';
 import { useMessagesStore } from '../store/useMessagesStore';
-import { RootStackParamList } from '../../../navigation/types';
+import { MessagesStackParamList } from '../../../navigation/types';
 import { RouteNames } from '../../../navigation/routeNames';
 import { Message } from '../types';
 
-type Props = NativeStackScreenProps<RootStackParamList, typeof RouteNames.CHAT_DETAIL>;
+type Props = NativeStackScreenProps<MessagesStackParamList, typeof RouteNames.CHAT_DETAIL>;
 
 const ChatDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   const { conversationId, otherUserName } = route.params;

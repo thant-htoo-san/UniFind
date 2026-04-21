@@ -7,11 +7,11 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { useAuthStore } from '../../auth/store/useAuthStore';
 import { useMessagesStore } from '../store/useMessagesStore';
-import { RootStackParamList } from '../../../navigation/types';
+import { MessagesStackParamList } from '../../../navigation/types';
 import { RouteNames } from '../../../navigation/routeNames';
 import { Conversation } from '../types';
 
-type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+type NavigationProp = NativeStackNavigationProp<MessagesStackParamList>;
 
 const MessagesScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();

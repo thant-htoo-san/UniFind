@@ -5,6 +5,7 @@ export type RootStackParamList = {
   [RouteNames.LOGIN]: undefined;
   [RouteNames.MAIN_TABS]: undefined;
   [RouteNames.ITEM_DETAIL]: { itemId: string };
+  [RouteNames.CHAT_DETAIL]: { conversationId: string; otherUserName: string };
 };
 
 export type MainTabParamList = {

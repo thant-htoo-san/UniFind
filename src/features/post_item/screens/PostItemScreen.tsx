@@ -90,14 +90,14 @@ const PostItemScreen: React.FC = () => {
       return;
     }
 
-    if (!selectedImageUri) {
-      Alert.alert('Image required', 'Please choose an image for the item.');
-      return;
-    }
-
     try {
       setIsUploadingImage(true);
-      const imageUrl = await uploadImageAsync(selectedImageUri, user.uid);
+      let imageUrl = '';
+      
+      // Upload image only if one is selected (optional)
+      if (selectedImageUri) {
+        imageUrl = await uploadImageAsync(selectedImageUri, user.uid);
+      }
 
       await createItem({
         title: title.trim(),
@@ -190,7 +190,7 @@ const PostItemScreen: React.FC = () => {
           </Field>
 
           <UniButton
-            label={isUploadingImage ? 'Uploading image...' : isCreating ? 'Saving...' : 'Save'}
+            label={isUploadingImage ? 'Uploading image...' : isCreating ? 'Posting...' : 'Post Item'}
             onPress={handleSubmit}
             disabled={isCreating || isUploadingImage}
           />

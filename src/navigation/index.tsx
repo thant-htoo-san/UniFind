@@ -10,6 +10,7 @@ import HomeScreen from '../features/feed/screens/HomeScreen';
 import PostItemScreen from '../features/post_item/screens/PostItemScreen';
 import SearchScreen from '../features/search/screens/SearchScreen';
 import MessagesScreen from '../features/messages/screens/MessagesScreen';
+import ChatDetailScreen from '../features/messages/screens/ChatDetailScreen';
 import ItemDetailScreen from '../features/item_detail/screens/ItemDetailScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -59,6 +60,7 @@ export function RootNavigator() {
         options={{ headerShown: false }}
       />
       <Stack.Screen name={RouteNames.ITEM_DETAIL} component={ItemDetailScreen} options={{ title: 'Item Detail' }} />
+      <Stack.Screen name={RouteNames.CHAT_DETAIL} component={ChatDetailScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 }

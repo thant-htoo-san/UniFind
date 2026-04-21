@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View, Image } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MapPin } from 'lucide-react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -7,6 +7,8 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import UniButton from '../../../core/components/UniButton';
 import StatusBadge from '../../../core/components/StatusBadge';
 import { useFeedStore } from '../../feed/store/useFeedStore';
+import { useAuthStore } from '../../auth/store/useAuthStore';
+import { useMessagesStore } from '../../messages/store/useMessagesStore';
 import { FeedItem } from '../../feed/types';
 import { RootStackParamList } from '../../../navigation/types';
 import { RouteNames } from '../../../navigation/routeNames';
@@ -14,11 +16,16 @@ import { getDocument } from '../../../services/firestoreService';
 
 type Props = NativeStackScreenProps<RootStackParamList, typeof RouteNames.ITEM_DETAIL>;
 
-const ItemDetailScreen: React.FC<Props> = ({ route }) => {
+const ItemDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   const { itemId } = route.params;
+  const user = useAuthStore((state) => state.user);
   const getItemById = useFeedStore((state) => state.getItemById);
+  const getOrCreateConversation = useMessagesStore((state) => state.getOrCreateConversation);
+  
   const [item, setItem] = useState<FeedItem | null>(getItemById(itemId) ?? null);
   const [isLoading, setIsLoading] = useState<boolean>(!item);
+  const [posterName, setPosterName] = useState<string>('');
+  const [isMessaging, setIsMessaging] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -61,6 +68,64 @@ const ItemDetailScreen: React.FC<Props> = ({ route }) => {
     };
   }, [getItemById, itemId]);
 
+  // Fetch poster name when item is loaded
+  useEffect(() => {
+    if (!item?.createdBy) return;
+
+    const fetchPosterName = async () => {
+      try {
+        const userDoc = await getDocument<{ displayName?: string; email?: string }>(
+          'users',
+          item.createdBy
+        );
+        if (userDoc && userDoc.displayName) {
+          setPosterName(userDoc.displayName);
+        }
+      } catch (error) {
+        console.error('Failed to fetch poster name:', error);
+        setPosterName('User');
+      }
+    };
+
+    fetchPosterName();
+  }, [item?.createdBy]);
+
+  const handleMessageFinder = async () => {
+    if (!user?.uid || !user?.displayName) {
+      Alert.alert('Error', 'Please log in first');
+      return;
+    }
+
+    if (!item?.createdBy) {
+      Alert.alert('Error', 'Could not find item poster');
+      return;
+    }
+
+    if (user.uid === item.createdBy) {
+      Alert.alert('Info', 'You posted this item');
+      return;
+    }
+
+    setIsMessaging(true);
+    try {
+      const conversationId = await getOrCreateConversation(
+        user.uid,
+        user.displayName,
+        item.createdBy,
+        posterName || 'User'
+      );
+
+      navigation.navigate(RouteNames.CHAT_DETAIL, {
+        conversationId,
+        otherUserName: posterName || 'User',
+      });
+    } catch (error: any) {
+      Alert.alert('Error', error?.message || 'Failed to start conversation');
+    } finally {
+      setIsMessaging(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <View style={styles.emptyContainer}>
@@ -97,7 +162,11 @@ const ItemDetailScreen: React.FC<Props> = ({ route }) => {
           <Text style={styles.location}>{item.location}</Text>
         </View>
         <Text style={styles.description}>{item.description || 'No description provided yet.'}</Text>
-        <UniButton label="Message Finder" onPress={() => {}} />
+        <UniButton 
+          label={isMessaging ? 'Opening chat...' : 'Message Finder'} 
+          onPress={handleMessageFinder}
+          disabled={isMessaging}
+        />
       </ScrollView>
     </SafeAreaView>
   );

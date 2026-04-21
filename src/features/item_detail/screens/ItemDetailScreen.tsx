@@ -1,15 +1,73 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MapPin } from 'lucide-react-native';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import UniButton from '../../../core/components/UniButton';
 import StatusBadge from '../../../core/components/StatusBadge';
 import { useFeedStore } from '../../feed/store/useFeedStore';
+import { FeedItem } from '../../feed/types';
+import { RootStackParamList } from '../../../navigation/types';
+import { RouteNames } from '../../../navigation/routeNames';
+import { getDocument } from '../../../services/firestoreService';
 
-const ItemDetailScreen: React.FC = () => {
-  const { items } = useFeedStore((state) => ({ items: state.items }));
-  const item = items[0];
+type Props = NativeStackScreenProps<RootStackParamList, typeof RouteNames.ITEM_DETAIL>;
+
+const ItemDetailScreen: React.FC<Props> = ({ route }) => {
+  const { itemId } = route.params;
+  const getItemById = useFeedStore((state) => state.getItemById);
+  const [item, setItem] = useState<FeedItem | null>(getItemById(itemId) ?? null);
+  const [isLoading, setIsLoading] = useState<boolean>(!item);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fromStore = getItemById(itemId);
+    if (fromStore) {
+      setItem(fromStore);
+      setIsLoading(false);
+      return;
+    }
+
+    const fetchItem = async () => {
+      try {
+        const doc = await getDocument<Omit<FeedItem, 'item_id'>>('items', itemId);
+        if (!isMounted) return;
+        if (doc) {
+          setItem({
+            item_id: doc.id,
+            title: doc.title,
+            location: doc.location,
+            description: doc.description,
+            status: doc.status,
+            imageUrl: doc.imageUrl,
+            categoryId: doc.categoryId,
+            categoryLabel: doc.categoryLabel,
+            createdBy: doc.createdBy,
+            createdAt: doc.createdAt,
+            updatedAt: doc.updatedAt,
+          });
+        }
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    };
+
+    fetchItem();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [getItemById, itemId]);
+
+  if (isLoading) {
+    return (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyText}>Loading item...</Text>
+      </View>
+    );
+  }
 
   if (!item) {
     return (
@@ -22,7 +80,14 @@ const ItemDetailScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Image source={{ uri: item.imageUrl }} style={styles.hero} />
+        <Image
+          source={{
+            uri:
+              item.imageUrl ||
+              'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=800&q=80',
+          }}
+          style={styles.hero}
+        />
         <View style={styles.headerRow}>
           <Text style={styles.title}>{item.title}</Text>
           <StatusBadge status={item.status} />
@@ -31,10 +96,7 @@ const ItemDetailScreen: React.FC = () => {
           <MapPin size={18} color="#6B7280" strokeWidth={2.25} />
           <Text style={styles.location}>{item.location}</Text>
         </View>
-        <Text style={styles.description}>
-          This is a placeholder description. Add more details about the item to help the owner confirm
-          it is theirs — stickers, engravings, or where it was found.
-        </Text>
+        <Text style={styles.description}>{item.description || 'No description provided yet.'}</Text>
         <UniButton label="Message Finder" onPress={() => {}} />
       </ScrollView>
     </SafeAreaView>

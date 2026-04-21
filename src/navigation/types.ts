@@ -4,7 +4,7 @@ export type RootStackParamList = {
   [RouteNames.LANDING]: undefined;
   [RouteNames.LOGIN]: undefined;
   [RouteNames.MAIN_TABS]: undefined;
-  [RouteNames.ITEM_DETAIL]: undefined;
+  [RouteNames.ITEM_DETAIL]: { itemId: string };
 };
 
 export type MainTabParamList = {

@@ -1,22 +1,128 @@
-import React, { useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
+import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 
 import UniButton from '../../../core/components/UniButton';
 import { useFeedStore } from '../../feed/store/useFeedStore';
 import { Category } from '../../feed/types';
+import { useAuthStore } from '../../auth/store/useAuthStore';
+import { storage } from '../../../config/firebase';
+
+const FALLBACK_CATEGORIES: Category[] = [
+  { id: 'electronics', label: 'Electronics' },
+  { id: 'documents', label: 'Documents' },
+  { id: 'accessories', label: 'Accessories' },
+  { id: 'others', label: 'Others' },
+];
 
 const PostItemScreen: React.FC = () => {
-  const { categories } = useFeedStore((state) => ({ categories: state.categories }));
+  const { categories, createItem, isCreating } = useFeedStore((state) => ({
+    categories: state.categories,
+    createItem: state.createItem,
+    isCreating: state.isCreating,
+  }));
+  const user = useAuthStore((state) => state.user);
   const filteredCategories = useMemo(() => categories.filter((c) => c.id !== 'all'), [categories]);
+  const postCategories = useMemo(
+    () => (filteredCategories.length > 0 ? filteredCategories : FALLBACK_CATEGORIES),
+    [filteredCategories]
+  );
 
   const [title, setTitle] = useState('');
   const [location, setLocation] = useState('');
   const [description, setDescription] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>(filteredCategories[0]?.id ?? '');
+  const [selectedImageUri, setSelectedImageUri] = useState('');
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
 
-  const handleSubmit = () => {
-    Alert.alert('Saved', 'Your item has been saved as a draft for now.');
+  useEffect(() => {
+    if (!selectedCategory && postCategories.length > 0) {
+      setSelectedCategory(postCategories[0].id);
+    }
+  }, [postCategories, selectedCategory]);
+
+  const uploadImageAsync = async (uri: string, userId: string) => {
+    const response = await fetch(uri);
+    const blob = await response.blob();
+    const extension = uri.split('.').pop()?.split('?')[0] || 'jpg';
+    const imageRef = ref(storage, `items/${userId}/${Date.now()}.${extension}`);
+    await uploadBytes(imageRef, blob);
+    return getDownloadURL(imageRef);
+  };
+
+  const handlePickImage = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permission needed', 'Please allow photo access to upload an image.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      quality: 0.8,
+    });
+
+    if (result.canceled) return;
+
+    const asset = result.assets?.[0];
+    if (asset?.uri) {
+      setSelectedImageUri(asset.uri);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!title.trim() || !location.trim() || !selectedCategory) {
+      Alert.alert('Missing fields', 'Please add title, location, and category.');
+      return;
+    }
+
+    if (!user?.uid) {
+      Alert.alert('Login required', 'Please log in again before posting.');
+      return;
+    }
+
+    const selected = postCategories.find((c) => c.id === selectedCategory);
+    if (!selected) {
+      Alert.alert('Category required', 'Please select a valid category.');
+      return;
+    }
+
+    if (!selectedImageUri) {
+      Alert.alert('Image required', 'Please choose an image for the item.');
+      return;
+    }
+
+    try {
+      setIsUploadingImage(true);
+      const imageUrl = await uploadImageAsync(selectedImageUri, user.uid);
+
+      await createItem({
+        title: title.trim(),
+        location: location.trim(),
+        description: description.trim(),
+        status: 'unclaimed',
+        imageUrl,
+        categoryId: selected.id,
+        categoryLabel: selected.label,
+        createdBy: user.uid,
+      });
+
+      setTitle('');
+      setLocation('');
+      setDescription('');
+      setSelectedImageUri('');
+      setSelectedCategory(postCategories[0]?.id ?? '');
+      Alert.alert('Posted', 'Your item is now live in the feed.');
+    } catch (error: any) {
+      const code = error?.code ? `${error.code}: ` : '';
+      const message = error?.message || 'Could not post item.';
+      Alert.alert('Post failed', `${code}${message}`);
+    } finally {
+      setIsUploadingImage(false);
+    }
   };
 
   return (
@@ -44,9 +150,18 @@ const PostItemScreen: React.FC = () => {
             />
           </Field>
 
+          <Field label="Image">
+            <Pressable style={styles.imagePickerButton} onPress={handlePickImage}>
+              <Text style={styles.imagePickerButtonText}>
+                {selectedImageUri ? 'Change Image' : 'Choose Image'}
+              </Text>
+            </Pressable>
+            {selectedImageUri ? <Image source={{ uri: selectedImageUri }} style={styles.previewImage} /> : null}
+          </Field>
+
           <Field label="Category">
             <View style={styles.chipRow}>
-              {filteredCategories.map((category: Category) => {
+              {postCategories.map((category: Category) => {
                 const isActive = category.id === selectedCategory;
                 return (
                   <Pressable
@@ -74,7 +189,11 @@ const PostItemScreen: React.FC = () => {
             />
           </Field>
 
-          <UniButton label="Save" onPress={handleSubmit} />
+          <UniButton
+            label={isUploadingImage ? 'Uploading image...' : isCreating ? 'Saving...' : 'Save'}
+            onPress={handleSubmit}
+            disabled={isCreating || isUploadingImage}
+          />
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -128,6 +247,27 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#0F172A',
     backgroundColor: '#F8FAFC',
+  },
+  imagePickerButton: {
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 12,
+    minHeight: 44,
+    paddingHorizontal: 14,
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  imagePickerButtonText: {
+    color: '#0F172A',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  previewImage: {
+    marginTop: 10,
+    width: '100%',
+    height: 180,
+    borderRadius: 12,
+    backgroundColor: '#E2E8F0',
   },
   multiline: {
     textAlignVertical: 'top',

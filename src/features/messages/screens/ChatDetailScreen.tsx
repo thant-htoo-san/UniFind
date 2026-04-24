@@ -8,22 +8,29 @@ import {
   View,
   KeyboardAvoidingView,
   Platform,
+  Image,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Send, ChevronLeft } from 'lucide-react-native';
+import { Send, ImagePlus } from 'lucide-react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import * as ImagePicker from 'expo-image-picker';
+import { supabase } from '../../../config/supabase';
 
-import { useAuthStore } from '../../auth/store/useAuthStore';
+import { AuthState, useAuthStore } from '../../auth/store/useAuthStore';
 import { useMessagesStore } from '../store/useMessagesStore';
 import { MessagesStackParamList } from '../../../navigation/types';
 import { RouteNames } from '../../../navigation/routeNames';
 import { Message } from '../types';
 
+const SUPABASE_BUCKET = 'messages';
+
 type Props = NativeStackScreenProps<MessagesStackParamList, typeof RouteNames.CHAT_DETAIL>;
 
 const ChatDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   const { conversationId, otherUserName } = route.params;
-  const user = useAuthStore((state) => state.user);
+  const user = useAuthStore((state: AuthState) => state.user);
   const {
     currentMessages,
     sendMessage,
@@ -40,6 +47,9 @@ const ChatDetailScreen: React.FC<Props> = ({ route, navigation }) => {
 
   const [messageText, setMessageText] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [debugNote, setDebugNote] = useState('');
+  const trimmedMessage = messageText.trim();
 
   useEffect(() => {
     // Set header
@@ -70,13 +80,93 @@ const ChatDetailScreen: React.FC<Props> = ({ route, navigation }) => {
     return () => unsubscribe();
   }, [conversationId, fetchMessages, subscribeToMessages]);
 
+  const uploadImageAsync = async (asset: ImagePicker.ImagePickerAsset, userId: string) => {
+    const response = await fetch(asset.uri);
+    const blob = await response.blob();
+    const fileName = asset.fileName || '';
+    const nameExtension = fileName.includes('.') ? fileName.split('.').pop() : '';
+    const mimeExtension = asset.mimeType?.includes('/') ? asset.mimeType.split('/').pop() : '';
+    const extension = (nameExtension || mimeExtension || 'jpg').toLowerCase();
+    const filePath = `${conversationId}/${userId}/${Date.now()}.${extension}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from(SUPABASE_BUCKET)
+      .upload(filePath, blob, {
+        contentType: asset.mimeType || blob.type || 'image/jpeg',
+        upsert: false,
+      });
+
+    if (uploadError) {
+      throw new Error(uploadError.message || 'Upload failed');
+    }
+
+    const { data } = supabase.storage.from(SUPABASE_BUCKET).getPublicUrl(filePath);
+    if (!data?.publicUrl) {
+      throw new Error('Failed to get image URL');
+    }
+
+    return data.publicUrl;
+  };
+
+  const handlePickImage = async () => {
+    if (!user?.uid) {
+      setDebugNote('Login required');
+      Alert.alert('Login required', 'Please log in again before sending images.');
+      return;
+    }
+
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      quality: 0.8,
+    });
+
+    if (result.canceled) return;
+
+    const asset = result.assets?.[0];
+    if (!asset?.uri) return;
+
+    setIsUploadingImage(true);
+    try {
+      const senderName = user.displayName || user.email?.split('@')[0] || 'User';
+      const imageUrl = await uploadImageAsync(asset, user.uid);
+      await sendMessage(conversationId, user.uid, senderName, '', imageUrl);
+      setDebugNote('Image sent');
+    } catch (error: any) {
+      setDebugNote(error?.message || 'Image upload failed');
+      Alert.alert('Upload failed', error?.message || 'Could not upload image');
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
   const handleSendMessage = async () => {
-    if (!messageText.trim() || !user?.uid || !user?.displayName) return;
+    if (!trimmedMessage) {
+      setDebugNote('Empty message');
+      Alert.alert('Empty message', 'Please type a message first.');
+      return;
+    }
+    if (!user?.uid) {
+      setDebugNote('Login required');
+      Alert.alert('Login required', 'Please log in again before sending messages.');
+      return;
+    }
 
     setIsSending(true);
     try {
-      await sendMessage(conversationId, user.uid, user.displayName, messageText.trim());
+      const senderName = user.displayName || user.email?.split('@')[0] || 'User';
+      console.log('Sending message', { conversationId, senderId: user.uid, senderName });
+      await sendMessage(conversationId, user.uid, senderName, trimmedMessage);
       setMessageText('');
+      
+    } catch (error: any) {
+      setDebugNote(error?.message || 'Send failed');
+      Alert.alert('Send failed', error?.message || 'Could not send message');
     } finally {
       setIsSending(false);
     }
@@ -93,9 +183,14 @@ const ChatDetailScreen: React.FC<Props> = ({ route, navigation }) => {
             isOwn ? styles.ownBubble : styles.otherBubble,
           ]}
         >
-          <Text style={[styles.messageText, isOwn ? styles.ownText : styles.otherText]}>
-            {item.text}
-          </Text>
+          {item.imageUrl ? (
+            <Image source={{ uri: item.imageUrl }} style={styles.messageImage} />
+          ) : null}
+          {item.text ? (
+            <Text style={[styles.messageText, isOwn ? styles.ownText : styles.otherText]}>
+              {item.text}
+            </Text>
+          ) : null}
           <Text style={[styles.messageTime, isOwn ? styles.ownTime : styles.otherTime]}>
             {new Date(item.createdAt).toLocaleTimeString([], {
               hour: '2-digit',
@@ -129,8 +224,10 @@ const ChatDetailScreen: React.FC<Props> = ({ route, navigation }) => {
           keyExtractor={(item) => item.id}
           renderItem={renderMessage}
           contentContainerStyle={styles.messageList}
+          keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           inverted={false}
+          style={styles.list}
           ListEmptyComponent={
             <View style={styles.centerContent}>
               <Text style={styles.emptyText}>No messages yet. Start the conversation!</Text>
@@ -139,6 +236,18 @@ const ChatDetailScreen: React.FC<Props> = ({ route, navigation }) => {
         />
 
         <View style={styles.inputContainer}>
+          {debugNote ? <Text style={styles.debugText}>{debugNote}</Text> : null}
+          <Pressable
+            style={styles.imageButton}
+            onPress={handlePickImage}
+            disabled={isSending || isUploadingImage}
+          >
+            {isUploadingImage ? (
+              <ActivityIndicator size="small" color="#007AFF" />
+            ) : (
+              <ImagePlus size={20} color="#007AFF" strokeWidth={2.25} />
+            )}
+          </Pressable>
           <TextInput
             style={styles.input}
             placeholder="Type a message..."
@@ -150,13 +259,17 @@ const ChatDetailScreen: React.FC<Props> = ({ route, navigation }) => {
             maxLength={500}
           />
           <Pressable
-            style={[styles.sendButton, (!messageText.trim() || isSending) && styles.sendButtonDisabled]}
-            onPress={handleSendMessage}
-            disabled={!messageText.trim() || isSending}
+            style={[styles.sendButton, (!trimmedMessage || isSending) && styles.sendButtonDisabled]}
+            onPress={() => {
+              console.log('Send pressed');
+              Alert.alert('Debug', 'Send pressed');
+              handleSendMessage();
+            }}
+            hitSlop={8}
           >
             <Send
               size={20}
-              color={messageText.trim() && !isSending ? '#007AFF' : '#9CA3AF'}
+              color={trimmedMessage && !isSending ? '#007AFF' : '#9CA3AF'}
               strokeWidth={2.25}
             />
           </Pressable>
@@ -190,6 +303,9 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 24,
   },
+  list: {
+    flex: 1,
+  },
   messageRow: {
     marginBottom: 12,
     flexDirection: 'row',
@@ -205,6 +321,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 16,
+  },
+  messageImage: {
+    width: 200,
+    height: 200,
+    borderRadius: 12,
+    marginBottom: 6,
   },
   ownBubble: {
     backgroundColor: '#007AFF',
@@ -238,6 +360,24 @@ const styles = StyleSheet.create({
     padding: 16,
     borderTopWidth: 1,
     borderTopColor: '#E5E7EB',
+    zIndex: 2,
+  },
+  debugText: {
+    position: 'absolute',
+    top: 4,
+    left: 16,
+    right: 16,
+    fontSize: 12,
+    color: '#DC2626',
+  },
+  imageButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+    backgroundColor: '#E5E7EB',
   },
   input: {
     flex: 1,

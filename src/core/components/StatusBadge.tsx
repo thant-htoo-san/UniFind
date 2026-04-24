@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-type ItemStatus = 'unclaimed' | 'returned';
+type ItemStatus = 'unclaimed' | 'claimed' | 'returned';
 
 interface StatusBadgeProps {
   status: ItemStatus;
@@ -9,12 +9,13 @@ interface StatusBadgeProps {
 
 const STATUS_STYLES: Record<ItemStatus, { backgroundColor: string; textColor: string }> = {
   unclaimed: { backgroundColor: '#F7D046', textColor: '#0D0D0D' },
+  claimed: { backgroundColor: '#2563EB', textColor: '#FFFFFF' },
   returned: { backgroundColor: '#2ECC71', textColor: '#FFFFFF' },
 };
 
 const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
   const { backgroundColor, textColor } = STATUS_STYLES[status];
-  const label = status === 'unclaimed' ? 'Unclaimed' : 'Returned';
+  const label = status === 'unclaimed' ? 'Unclaimed' : status === 'claimed' ? 'Claimed' : 'Returned';
 
   return (
     <View style={[styles.badge, { backgroundColor }]}>

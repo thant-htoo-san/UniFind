@@ -1,20 +1,27 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
-import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
+import { supabase } from '../../../config/supabase';
 
 import UniButton from '../../../core/components/UniButton';
 import { useFeedStore } from '../../feed/store/useFeedStore';
-import { Category } from '../../feed/types';
-import { useAuthStore } from '../../auth/store/useAuthStore';
-import { storage } from '../../../config/firebase';
+import { Category, PostType } from '../../feed/types';
+import { AuthState, useAuthStore } from '../../auth/store/useAuthStore';
+
+const SUPABASE_BUCKET = 'items';
 
 const FALLBACK_CATEGORIES: Category[] = [
   { id: 'electronics', label: 'Electronics' },
+  { id: 'bags', label: 'Bags' },
+  { id: 'wallets-ids', label: 'Wallets & IDs - sports, cards' },
+  { id: 'clothing-accessories', label: 'Clothing & Accessories' },
+  { id: 'keys', label: 'Keys' },
   { id: 'documents', label: 'Documents' },
-  { id: 'accessories', label: 'Accessories' },
-  { id: 'others', label: 'Others' },
+  { id: 'water-bottles-containers', label: 'Water Bottles & Containers' },
+  { id: 'books-study-items', label: 'Books & Study Items' },
+  { id: 'other', label: 'Other' },
 ];
 
 const PostItemScreen: React.FC = () => {
@@ -23,19 +30,23 @@ const PostItemScreen: React.FC = () => {
     createItem: state.createItem,
     isCreating: state.isCreating,
   }));
-  const user = useAuthStore((state) => state.user);
+  const user = useAuthStore((state: AuthState) => state.user);
   const filteredCategories = useMemo(() => categories.filter((c) => c.id !== 'all'), [categories]);
-  const postCategories = useMemo(
-    () => (filteredCategories.length > 0 ? filteredCategories : FALLBACK_CATEGORIES),
-    [filteredCategories]
-  );
+  const postCategories = useMemo(() => {
+    const merged = new Map<string, string>();
+    FALLBACK_CATEGORIES.forEach((category) => merged.set(category.id, category.label));
+    filteredCategories.forEach((category) => merged.set(category.id, category.label));
+
+    return Array.from(merged.entries()).map(([id, label]) => ({ id, label }));
+  }, [filteredCategories]);
 
   const [title, setTitle] = useState('');
   const [location, setLocation] = useState('');
   const [description, setDescription] = useState('');
-  const [selectedImageUri, setSelectedImageUri] = useState('');
+  const [selectedImage, setSelectedImage] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [postType, setPostType] = useState<PostType>('lost');
 
   useEffect(() => {
     if (!selectedCategory && postCategories.length > 0) {
@@ -43,13 +54,32 @@ const PostItemScreen: React.FC = () => {
     }
   }, [postCategories, selectedCategory]);
 
-  const uploadImageAsync = async (uri: string, userId: string) => {
-    const response = await fetch(uri);
+  const uploadImageAsync = async (asset: ImagePicker.ImagePickerAsset, userId: string) => {
+    const response = await fetch(asset.uri);
     const blob = await response.blob();
-    const extension = uri.split('.').pop()?.split('?')[0] || 'jpg';
-    const imageRef = ref(storage, `items/${userId}/${Date.now()}.${extension}`);
-    await uploadBytes(imageRef, blob);
-    return getDownloadURL(imageRef);
+    const fileName = asset.fileName || '';
+    const nameExtension = fileName.includes('.') ? fileName.split('.').pop() : '';
+    const mimeExtension = asset.mimeType?.includes('/') ? asset.mimeType.split('/').pop() : '';
+    const extension = (nameExtension || mimeExtension || 'jpg').toLowerCase();
+    const filePath = `${userId}/${Date.now()}.${extension}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from(SUPABASE_BUCKET)
+      .upload(filePath, blob, {
+        contentType: asset.mimeType || blob.type || 'image/jpeg',
+        upsert: false,
+      });
+
+    if (uploadError) {
+      throw new Error(uploadError.message || 'Upload failed');
+    }
+
+    const { data } = supabase.storage.from(SUPABASE_BUCKET).getPublicUrl(filePath);
+    if (!data?.publicUrl) {
+      throw new Error('Failed to get image URL');
+    }
+
+    return data.publicUrl;
   };
 
   const handlePickImage = async () => {
@@ -69,7 +99,7 @@ const PostItemScreen: React.FC = () => {
 
     const asset = result.assets?.[0];
     if (asset?.uri) {
-      setSelectedImageUri(asset.uri);
+      setSelectedImage(asset);
     }
   };
 
@@ -95,8 +125,8 @@ const PostItemScreen: React.FC = () => {
       let imageUrl = '';
       
       // Upload image only if one is selected (optional)
-      if (selectedImageUri) {
-        imageUrl = await uploadImageAsync(selectedImageUri, user.uid);
+      if (selectedImage) {
+        imageUrl = await uploadImageAsync(selectedImage, user.uid);
       }
 
       await createItem({
@@ -104,6 +134,7 @@ const PostItemScreen: React.FC = () => {
         location: location.trim(),
         description: description.trim(),
         status: 'unclaimed',
+        postType,
         imageUrl,
         categoryId: selected.id,
         categoryLabel: selected.label,
@@ -113,7 +144,7 @@ const PostItemScreen: React.FC = () => {
       setTitle('');
       setLocation('');
       setDescription('');
-      setSelectedImageUri('');
+      setSelectedImage(null);
       setSelectedCategory(postCategories[0]?.id ?? '');
       Alert.alert('Posted', 'Your item is now live in the feed.');
     } catch (error: any) {
@@ -128,10 +159,32 @@ const PostItemScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.title}>Post a Lost Item</Text>
-        <Text style={styles.subtitle}>Share details so others can find it quickly.</Text>
+        <Text style={styles.title}>{postType === 'lost' ? 'Post a Lost Item' : 'Post a Found Item'}</Text>
+        <Text style={styles.subtitle}>
+          {postType === 'lost'
+            ? 'Share details so others can help you find it quickly.'
+            : 'Share details so the owner can recognize and claim it.'}
+        </Text>
 
         <View style={styles.form}>
+          <Field label="Type">
+            <View style={styles.toggleRow}>
+              {(['lost', 'found'] as PostType[]).map((type) => {
+                const isActive = postType === type;
+                return (
+                  <Pressable
+                    key={type}
+                    onPress={() => setPostType(type)}
+                    style={[styles.toggleChip, isActive ? styles.toggleChipActive : styles.toggleChipInactive]}
+                  >
+                    <Text style={[styles.toggleText, isActive ? styles.toggleTextActive : styles.toggleTextInactive]}>
+                      {type === 'lost' ? 'Lost' : 'Found'}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </Field>
           <Field label="Title">
             <TextInput
               value={title}
@@ -145,7 +198,7 @@ const PostItemScreen: React.FC = () => {
             <TextInput
               value={location}
               onChangeText={setLocation}
-              placeholder="Where you found it"
+              placeholder={postType === 'lost' ? 'Where you lost it' : 'Where you found it'}
               style={styles.input}
             />
           </Field>
@@ -153,28 +206,24 @@ const PostItemScreen: React.FC = () => {
           <Field label="Image">
             <Pressable style={styles.imagePickerButton} onPress={handlePickImage}>
               <Text style={styles.imagePickerButtonText}>
-                {selectedImageUri ? 'Change Image' : 'Choose Image'}
+                {selectedImage ? 'Change Image' : 'Choose Image'}
               </Text>
             </Pressable>
-            {selectedImageUri ? <Image source={{ uri: selectedImageUri }} style={styles.previewImage} /> : null}
+            {selectedImage?.uri ? <Image source={{ uri: selectedImage.uri }} style={styles.previewImage} /> : null}
           </Field>
 
           <Field label="Category">
-            <View style={styles.chipRow}>
-              {postCategories.map((category: Category) => {
-                const isActive = category.id === selectedCategory;
-                return (
-                  <Pressable
-                    key={category.id}
-                    onPress={() => setSelectedCategory(category.id)}
-                    style={[styles.chip, isActive ? styles.chipActive : styles.chipInactive]}
-                  >
-                    <Text style={[styles.chipLabel, isActive ? styles.chipLabelActive : styles.chipLabelInactive]}>
-                      {category.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+            <View style={styles.pickerWrapper}>
+              <Picker
+                selectedValue={selectedCategory}
+                onValueChange={(value) => setSelectedCategory(String(value))}
+                style={styles.picker}
+                dropdownIconColor="#0F172A"
+              >
+                {postCategories.map((category: Category) => (
+                  <Picker.Item key={category.id} label={category.label} value={category.id} />
+                ))}
+              </Picker>
             </View>
           </Field>
 
@@ -182,7 +231,9 @@ const PostItemScreen: React.FC = () => {
             <TextInput
               value={description}
               onChangeText={setDescription}
-              placeholder="Add details, stickers, identifiable marks"
+              placeholder={postType === 'lost'
+                ? 'Add details, stickers, identifiable marks'
+                : 'Describe condition, marks, or accessories'}
               style={[styles.input, styles.multiline]}
               multiline
               numberOfLines={4}
@@ -272,34 +323,43 @@ const styles = StyleSheet.create({
   multiline: {
     textAlignVertical: 'top',
   },
-  chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  chip: {
+  pickerWrapper: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
     borderRadius: 12,
-    paddingHorizontal: 14,
+    backgroundColor: '#F8FAFC',
+    overflow: 'hidden',
+  },
+  picker: {
+    minHeight: 44,
+    color: '#0F172A',
+  },
+  toggleRow: {
+    flexDirection: 'row',
+  },
+  toggleChip: {
+    borderRadius: 999,
+    paddingHorizontal: 18,
     paddingVertical: 10,
     minHeight: 44,
     justifyContent: 'center',
-    marginRight: 8,
-    marginBottom: 8,
+    marginRight: 10,
   },
-  chipActive: {
-    backgroundColor: '#007AFF',
+  toggleChipActive: {
+    backgroundColor: '#0F172A',
   },
-  chipInactive: {
-    backgroundColor: '#F2F2F2',
+  toggleChipInactive: {
+    backgroundColor: '#E5E7EB',
   },
-  chipLabel: {
+  toggleText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
   },
-  chipLabelActive: {
+  toggleTextActive: {
     color: '#FFFFFF',
   },
-  chipLabelInactive: {
-    color: '#0F172A',
+  toggleTextInactive: {
+    color: '#111827',
   },
 });
 

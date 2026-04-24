@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { Message, Conversation } from '../types';
-import { pushData, subscribeToData, getData, setData } from '../../../services/realtimeDbService';
+import { pushData, subscribeToData, getData, setData, updateData } from '../../../services/realtimeDbService';
 
 type MessageStore = {
   conversations: Record<string, Conversation>;
@@ -19,7 +19,8 @@ type MessageStore = {
     conversationId: string,
     senderId: string,
     senderName: string,
-    text: string
+    text: string,
+    imageUrl?: string
   ) => Promise<void>;
   
   // Get or create a conversation between two users
@@ -90,31 +91,46 @@ export const useMessagesStore = create<MessageStore>((set, get) => ({
     conversationId: string,
     senderId: string,
     senderName: string,
-    text: string
+    text: string,
+    imageUrl?: string
   ) => {
+    const trimmedText = text.trim();
+    if (!trimmedText && !imageUrl) {
+      throw new Error('Message content is empty');
+    }
+
+    const messagePayload: Omit<Message, 'id'> = {
+      conversationId,
+      senderId,
+      senderName,
+      createdAt: Date.now(),
+      ...(trimmedText ? { text: trimmedText } : {}),
+      ...(imageUrl ? { imageUrl } : {}),
+    };
+
     // Push message to Firebase
     const messageId = await pushData<Omit<Message, 'id'>>(
       `messages/${conversationId}`,
-      {
-        conversationId,
-        senderId,
-        senderName,
-        text,
-      }
+      messagePayload
     );
 
     if (!messageId) throw new Error('Failed to send message');
 
+    const now = Date.now();
+    const lastMessageText = trimmedText || (imageUrl ? '[Image]' : '');
+
     // Update conversation with last message
     const conversations = get().conversations;
-    const conversation = conversations[conversationId];
+    const conversation = conversations[conversationId] ||
+      (await getData<Conversation>(`conversations/${conversationId}`));
+
     if (conversation) {
       const updatedConversation: Conversation = {
         ...conversation,
-        lastMessage: text,
-        lastMessageTime: Date.now(),
+        lastMessage: lastMessageText,
+        lastMessageTime: now,
         lastMessageSenderId: senderId,
-        updatedAt: Date.now(),
+        updatedAt: now,
       };
       set({
         conversations: {
@@ -122,10 +138,14 @@ export const useMessagesStore = create<MessageStore>((set, get) => ({
           [conversationId]: updatedConversation,
         },
       });
-
-      // Update in Firebase
-      await setData(`conversations/${conversationId}`, updatedConversation);
     }
+
+    // Ensure conversation metadata is updated in Firebase even if it was not in local state
+    await updateData(`conversations/${conversationId}`, {
+      lastMessage: lastMessageText,
+      lastMessageTime: now,
+      lastMessageSenderId: senderId,
+    });
   },
 
   getOrCreateConversation: async (

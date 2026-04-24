@@ -37,6 +37,7 @@ const mapDocToFeedItem = (doc: FirestoreItemDoc): FeedItem => ({
   location: doc.location,
   description: doc.description,
   status: doc.status,
+  postType: doc.postType ?? 'lost',
   imageUrl: doc.imageUrl,
   categoryId: doc.categoryId,
   categoryLabel: doc.categoryLabel,

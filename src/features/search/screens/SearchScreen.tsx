@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { FlatList, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import FeedItemCard from '../../feed/components/FeedItemCard';
-import { FeedItem } from '../../feed/types';
+import { FeedItem, PostType } from '../../feed/types';
 import { useFeedStore } from '../../feed/store/useFeedStore';
 import { RootStackParamList } from '../../../navigation/types';
 import { RouteNames } from '../../../navigation/routeNames';
@@ -18,6 +18,7 @@ const SearchScreen: React.FC = () => {
     isLoading: state.isLoading,
   }));
   const [query, setQuery] = useState('');
+  const [postTypeFilter, setPostTypeFilter] = useState<'all' | PostType>('all');
 
   useEffect(() => {
     const unsubscribe = loadItems();
@@ -26,13 +27,16 @@ const SearchScreen: React.FC = () => {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter((item: FeedItem) =>
-      [item.title, item.location, item.categoryLabel].some((field) =>
-        field.toLowerCase().includes(q)
-      )
-    );
-  }, [items, query]);
+    const byQuery = !q
+      ? items
+      : items.filter((item: FeedItem) =>
+          [item.title, item.location, item.categoryLabel].some((field) =>
+            field.toLowerCase().includes(q)
+          )
+        );
+    if (postTypeFilter === 'all') return byQuery;
+    return byQuery.filter((item) => item.postType === postTypeFilter);
+  }, [items, query, postTypeFilter]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -43,6 +47,22 @@ const SearchScreen: React.FC = () => {
         placeholder="Search by title, location, or category"
         style={styles.input}
       />
+      <View style={styles.filterRow}>
+        {(['all', 'lost', 'found'] as const).map((type) => {
+          const isActive = postTypeFilter === type;
+          return (
+            <Pressable
+              key={type}
+              onPress={() => setPostTypeFilter(type)}
+              style={[styles.filterChip, isActive ? styles.filterChipActive : styles.filterChipInactive]}
+            >
+              <Text style={[styles.filterText, isActive ? styles.filterTextActive : styles.filterTextInactive]}>
+                {type === 'all' ? 'All' : type === 'lost' ? 'Lost' : 'Found'}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
       <FlatList
         data={filtered}
         keyExtractor={(item) => item.item_id}
@@ -89,6 +109,32 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: 24,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    marginBottom: 12,
+  },
+  filterChip: {
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    marginRight: 8,
+  },
+  filterChipActive: {
+    backgroundColor: '#0F172A',
+  },
+  filterChipInactive: {
+    backgroundColor: '#E5E7EB',
+  },
+  filterText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  filterTextActive: {
+    color: '#FFFFFF',
+  },
+  filterTextInactive: {
+    color: '#111827',
   },
   itemSpacing: {
     marginBottom: 12,

@@ -8,7 +8,7 @@ import {
   resetPassword,
 } from '../../../services/authService';
 
-interface AuthState {
+export interface AuthState {
   user: User | null;
   isLoading: boolean;
   isInitialized: boolean;

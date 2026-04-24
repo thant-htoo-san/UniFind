@@ -1,4 +1,5 @@
-export type ItemStatus = 'unclaimed' | 'returned';
+export type ItemStatus = 'unclaimed' | 'claimed' | 'returned';
+export type PostType = 'lost' | 'found';
 
 export type FeedItem = {
   item_id: string;
@@ -6,6 +7,7 @@ export type FeedItem = {
   location: string;
   description?: string;
   status: ItemStatus;
+  postType: PostType;
   imageUrl: string;
   categoryId: string;
   categoryLabel: string;

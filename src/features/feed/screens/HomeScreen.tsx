@@ -1,12 +1,12 @@
-import React, { useEffect, useMemo } from 'react';
-import { FlatList, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import CategoryCarousel from '../components/CategoryCarousel';
 import FeedItemCard from '../components/FeedItemCard';
-import { Category, FeedItem } from '../types';
+import { Category, FeedItem, PostType } from '../types';
 import { useFeedStore } from '../store/useFeedStore';
 import { RootStackParamList } from '../../../navigation/types';
 import { RouteNames } from '../../../navigation/routeNames';
@@ -23,7 +23,13 @@ const HomeScreen: React.FC = () => {
     error: state.error,
   }));
 
-  const items = useMemo(() => getFilteredItems(), [getFilteredItems, selectedCategoryId]);
+  const [postTypeFilter, setPostTypeFilter] = useState<'all' | PostType>('all');
+
+  const items = useMemo(() => {
+    const base = getFilteredItems();
+    if (postTypeFilter === 'all') return base;
+    return base.filter((item) => item.postType === postTypeFilter);
+  }, [getFilteredItems, selectedCategoryId, postTypeFilter]);
 
   useEffect(() => {
     const unsubscribe = loadItems();
@@ -54,6 +60,23 @@ const HomeScreen: React.FC = () => {
         selectedCategoryId={selectedCategoryId}
         onCategoryChange={handleCategoryChange}
       />
+
+      <View style={styles.filterRow}>
+        {(['all', 'lost', 'found'] as const).map((type) => {
+          const isActive = postTypeFilter === type;
+          return (
+            <Pressable
+              key={type}
+              onPress={() => setPostTypeFilter(type)}
+              style={[styles.filterChip, isActive ? styles.filterChipActive : styles.filterChipInactive]}
+            >
+              <Text style={[styles.filterText, isActive ? styles.filterTextActive : styles.filterTextInactive]}>
+                {type === 'all' ? 'All' : type === 'lost' ? 'Lost' : 'Found'}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
 
       {isLoading && <Text style={styles.infoText}>Loading items...</Text>}
       {!isLoading && !!error && <Text style={styles.errorText}>{error}</Text>}
@@ -101,6 +124,33 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: 16,
     paddingBottom: 24,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  },
+  filterChip: {
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    marginRight: 8,
+  },
+  filterChipActive: {
+    backgroundColor: '#0F172A',
+  },
+  filterChipInactive: {
+    backgroundColor: '#E5E7EB',
+  },
+  filterText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  filterTextActive: {
+    color: '#FFFFFF',
+  },
+  filterTextInactive: {
+    color: '#111827',
   },
   cardWrapper: {
     flex: 1,

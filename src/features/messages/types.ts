@@ -3,7 +3,8 @@ export type Message = {
   conversationId: string;
   senderId: string;
   senderName: string;
-  text: string;
+  text?: string;
+  imageUrl?: string;
   createdAt: number;
 };
 

@@ -13,11 +13,11 @@ import { RouteNames } from '../../../navigation/routeNames';
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { categories, selectedCategoryId, selectCategory, getFilteredItems, loadItems, isLoading, error } = useFeedStore((state) => ({
+  const { items: allItems, categories, selectedCategoryId, selectCategory, loadItems, isLoading, error } = useFeedStore((state) => ({
+    items: state.items,
     categories: state.categories,
     selectedCategoryId: state.selectedCategoryId,
     selectCategory: state.selectCategory,
-    getFilteredItems: state.getFilteredItems,
     loadItems: state.loadItems,
     isLoading: state.isLoading,
     error: state.error,
@@ -26,15 +26,19 @@ const HomeScreen: React.FC = () => {
   const [postTypeFilter, setPostTypeFilter] = useState<'all' | PostType>('all');
 
   const items = useMemo(() => {
-    const base = getFilteredItems();
+    const base = selectedCategoryId === 'all'
+      ? allItems
+      : allItems.filter((item) => item.categoryId === selectedCategoryId);
     if (postTypeFilter === 'all') return base;
     return base.filter((item) => item.postType === postTypeFilter);
-  }, [getFilteredItems, selectedCategoryId, postTypeFilter]);
+  }, [allItems, selectedCategoryId, postTypeFilter]);
 
   useEffect(() => {
+    selectCategory('all');
+    setPostTypeFilter('all');
     const unsubscribe = loadItems();
     return unsubscribe;
-  }, [loadItems]);
+  }, [loadItems, selectCategory]);
 
   const handleCategoryChange = (category: Category) => {
     selectCategory(category.id);

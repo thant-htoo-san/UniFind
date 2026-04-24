@@ -2,7 +2,7 @@ import { initializeApp } from 'firebase/app';
 import * as FirebaseAuth from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getDatabase } from 'firebase/database';
-import { getStorage } from 'firebase/storage';
+//import { getStorage } from 'firebase/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import {
@@ -55,7 +55,7 @@ const authInstance =
 export const auth = authInstance;
 export const db = getFirestore(app);
 export const rtdb = getDatabase(app);
-export const storage = getStorage(app);
+//export const storage = getStorage(app);
 
 export default app;
 // 🔥 Firestore Test Functions

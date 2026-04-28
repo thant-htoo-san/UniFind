@@ -5,32 +5,41 @@ import { getDatabase } from 'firebase/database';
 //import { getStorage } from 'firebase/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
-import {
-  FIREBASE_API_KEY,
-  FIREBASE_AUTH_DOMAIN,
-  FIREBASE_PROJECT_ID,
-  FIREBASE_STORAGE_BUCKET,
-  FIREBASE_MESSAGING_SENDER_ID,
-  FIREBASE_APP_ID,
-  FIREBASE_DATABASE_URL,
-} from '@env';
+import Constants from 'expo-constants';
 
-const firebaseConfig = {
-  apiKey: FIREBASE_API_KEY,
-  authDomain: FIREBASE_AUTH_DOMAIN,
-  projectId: FIREBASE_PROJECT_ID,
-  storageBucket: FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: FIREBASE_MESSAGING_SENDER_ID,
-  appId: FIREBASE_APP_ID,
-  databaseURL: FIREBASE_DATABASE_URL,
+type ExpoExtra = {
+  firebaseApiKey?: string;
+  firebaseAuthDomain?: string;
+  firebaseProjectId?: string;
+  firebaseStorageBucket?: string;
+  firebaseMessagingSenderId?: string;
+  firebaseAppId?: string;
+  firebaseDatabaseUrl?: string;
 };
 
-// Debug: Log config to verify env vars are loaded
-console.log('Firebase Config:', {
-  apiKey: FIREBASE_API_KEY ? 'loaded' : 'missing',
-  authDomain: FIREBASE_AUTH_DOMAIN ? 'loaded' : 'missing',
-  projectId: FIREBASE_PROJECT_ID ? 'loaded' : 'missing',
-});
+const extra = (Constants.expoConfig?.extra ?? Constants.manifest?.extra ?? {}) as ExpoExtra;
+
+const firebaseConfig = {
+  apiKey: extra.firebaseApiKey ?? '',
+  authDomain: extra.firebaseAuthDomain ?? '',
+  projectId: extra.firebaseProjectId ?? '',
+  storageBucket: extra.firebaseStorageBucket ?? '',
+  messagingSenderId: extra.firebaseMessagingSenderId ?? '',
+  appId: extra.firebaseAppId ?? '',
+  databaseURL: extra.firebaseDatabaseUrl ?? '',
+};
+
+const missingFirebaseKeys = [
+  ['firebaseApiKey', firebaseConfig.apiKey],
+  ['firebaseAuthDomain', firebaseConfig.authDomain],
+  ['firebaseProjectId', firebaseConfig.projectId],
+  ['firebaseAppId', firebaseConfig.appId],
+].filter(([, value]) => !value);
+
+if (missingFirebaseKeys.length > 0) {
+  const missingList = missingFirebaseKeys.map(([key]) => key).join(', ');
+  console.error(`Missing Firebase config values: ${missingList}`);
+}
 
 const app = initializeApp(firebaseConfig);
 
